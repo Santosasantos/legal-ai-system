@@ -3,13 +3,14 @@ Streamlit UI — Legal AI System
 Pearson Specter Litt — Internal Document Workflow
 """
 
+import os
 import streamlit as st
 import requests
 import json
 import time
 from typing import Optional
 
-API_BASE = "http://backend:8000/api/v1"
+API_BASE = os.environ.get("BACKEND_URL", "http://backend:8000") + "/api/v1"
 
 st.set_page_config(
     page_title="PSL Legal AI",
