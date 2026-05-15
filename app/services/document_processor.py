@@ -192,8 +192,12 @@ async def _extract_structured_fields(full_text: str) -> StructuredFields:
             max_tokens=1024,
             temperature=0.0,
         )
-        # Strip markdown code fences if present
-        raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("```").strip()
+        # Strip markdown code fences (```json ... ``` or ``` ... ```)
+        raw = re.sub(r"```(?:json)?\s*", "", raw).strip().rstrip("`").strip()
+        # Extract JSON object if there's surrounding text
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            raw = match.group(0)
         data = json.loads(raw)
         return StructuredFields(**data)
     except (json.JSONDecodeError, Exception) as e:
