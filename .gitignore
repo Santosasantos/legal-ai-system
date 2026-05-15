@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+chroma_db/
+data/outputs/
+data/feedback/
+data/sample_documents/*.pdf
+*.egg-info/
+dist/
+build/
+.DS_Store

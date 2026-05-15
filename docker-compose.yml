@@ -1,0 +1,120 @@
+services:
+
+  # ── ChromaDB — vector store ───────────────────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: psl_chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=false
+      - ALLOW_RESET=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8000 && echo -e 'GET /api/v2/heartbeat HTTP/1.0\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Backend — FastAPI ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: psl_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app
+    env_file:
+      - .env
+    environment:
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── UI — Streamlit ────────────────────────────────────────────────────────
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: psl_ui
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # OPTIONAL: Local Ollama (Qwen2.5) — only needed if LLM_PROVIDER=ollama
+  #
+  # To run with Ollama instead of Gemini:
+  #   docker compose --profile ollama up -d
+  #
+  # Then set in .env:
+  #   LLM_PROVIDER=ollama
+  #   OLLAMA_BASE_URL=http://ollama:11434
+  # ─────────────────────────────────────────────────────────────────────────
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: psl_ollama
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: psl_ollama_pull
+    profiles: ["ollama"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: >
+      /bin/sh -c "
+        ollama pull qwen2.5vl:3b &&
+        ollama pull qwen2.5:3b &&
+        ollama pull nomic-embed-text &&
+        echo 'All models ready.'
+      "
+    restart: "no"
+
+volumes:
+  chroma_data:
+    driver: local
+  ollama_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /media/santooosa54nt005/h/docker-data/ollama_models
