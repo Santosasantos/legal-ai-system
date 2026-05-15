@@ -33,10 +33,25 @@ _collection = None
 def _get_client() -> chromadb.HttpClient:
     global _chroma_client
     if _chroma_client is None:
-        _chroma_client = chromadb.HttpClient(
-            host=settings.CHROMA_HOST,
-            port=settings.CHROMA_PORT,
-        )
+        host = settings.CHROMA_HOST
+        port = settings.CHROMA_PORT
+        # Support full URLs (e.g. https://legal-ai-chromadb.onrender.com)
+        if host.startswith("http://") or host.startswith("https://"):
+            import urllib.parse
+            parsed = urllib.parse.urlparse(host)
+            ssl = parsed.scheme == "https"
+            host = parsed.hostname
+            port = parsed.port or (443 if ssl else 8000)
+            _chroma_client = chromadb.HttpClient(
+                host=host,
+                port=port,
+                ssl=ssl,
+            )
+        else:
+            _chroma_client = chromadb.HttpClient(
+                host=host,
+                port=port,
+            )
         logger.info(f"ChromaDB connected: {settings.CHROMA_HOST}:{settings.CHROMA_PORT}")
     return _chroma_client
 
