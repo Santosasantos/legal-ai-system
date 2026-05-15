@@ -76,6 +76,16 @@ def is_connected() -> bool:
         return False
 
 
+def _parse_chroma_host():
+    host = settings.CHROMA_HOST
+    if host.startswith("http://") or host.startswith("https://"):
+        import urllib.parse
+        parsed = urllib.parse.urlparse(host)
+        ssl = parsed.scheme == "https"
+        return parsed.hostname, parsed.port or (443 if ssl else 8000), ssl
+    return host, settings.CHROMA_PORT, False
+
+
 # ── Metadata serialisation ────────────────────────────────────────────────────
 
 def _serialise_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
